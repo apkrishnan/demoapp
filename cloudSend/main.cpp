@@ -9,7 +9,7 @@
 #include <ctype.h>
 #include <time.h>
 
-char* azurePathStr = (char*)"amqps://owner:eHU40bVNQZHy8zOOErpbsROAo9cp5DjIl3yHgICQhL4=@arun-amqp-ns.servicebus.windows.net/arun-queue";
+//char* azurePathStr = (char*)"amqps://owner:eHU40bVNQZHy8zOOErpbsROAo9cp5DjIl3yHgICQhL4=@arun-amqp-ns.servicebus.windows.net/rahul-queue";
 
 pn_messenger_t* messengerPtr;
 
@@ -24,7 +24,12 @@ void die(const char* f_fileName, int f_line, const char* f_message) {
     exit(1);
 }
 
-int main(void) {
+int main(int argc, char** argv) {
+
+    if(argc < 1) {
+        printf("Specify Azure queue path\n");
+        return 0;
+    }
 
     // Initialize and start the messenger.
     // Set to be non-blocking mode with outgoing window size of 1024.
@@ -50,11 +55,11 @@ int main(void) {
         Json::FastWriter jsonWriter;
         std::string jsonFile = jsonWriter.write(valObj);
 
-        printf("Sending message:\n%s\n", jsonFile.c_str());
+        printf("Sending message to %s:\n%s\n", argv[1], jsonFile.c_str());
 
         // Initiatlze message data pointer.
         pn_message_t* msgPtr = pn_message();
-        pn_message_set_address(msgPtr, azurePathStr);
+        pn_message_set_address(msgPtr, argv[1]);
         pn_data_t* msgBodyPtr = pn_message_body(msgPtr);
         pn_data_put_string(msgBodyPtr, pn_bytes(jsonFile.length(), jsonFile.c_str()));
     
