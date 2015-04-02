@@ -11,6 +11,9 @@
 
 //char* azurePathStr = (char*)"amqps://owner:eHU40bVNQZHy8zOOErpbsROAo9cp5DjIl3yHgICQhL4=@arun-amqp-ns.servicebus.windows.net/rahul-queue";
 
+// GPIO used for Button.
+#define BTN_GPIO    49
+
 pn_messenger_t* messengerPtr;
 
 #define check(messengerPtr)                                                       \
@@ -26,10 +29,8 @@ void die(const char* f_fileName, int f_line, const char* f_message) {
 
 int main(int argc, char** argv) {
 
-    if(argc < 1) {
-        printf("Specify Azure queue path\n");
-        return 0;
-    }
+    if(argc < 1) 
+        die(__FILE__, __LINE__, "Specify the Azure queue path");
 
     // Initialize and start the messenger.
     // Set to be non-blocking mode with outgoing window size of 1024.
@@ -38,10 +39,22 @@ int main(int argc, char** argv) {
     pn_messenger_set_outgoing_window(messengerPtr, 1024); 
     pn_messenger_start(messengerPtr);
 
+    // Configure Button GPIO to be input pin.
+    gpio_export(BTN_GPIO);
+    gpio_set_dir(BTN_GPIO, INPUT_PIN);
+
     while(1) {
 
+#if 1
         // Wait for user key press.
         getchar();
+#else
+        unsigned int pinStat = LOW;
+        do {
+            gpio_get_value(BTN_GPIO, &pinStat);
+            usleep(1000);
+        } while(pinStat != HIGH);
+#endif
 
         // Create JSON message string.
         Json::Value valObj;
