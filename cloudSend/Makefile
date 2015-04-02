@@ -10,9 +10,9 @@ SOURCES += json.cpp
 HEADERS := gpio.h
 HEADERS += json.h
 
-EXE = cloudRecv
+EXE = cloudSend
 
-LIBS :=
+LIBS := -lqpid-proton
 
 OBJS = $(SOURCES:.cpp=.o)
 

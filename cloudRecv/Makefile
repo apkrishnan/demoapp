@@ -12,7 +12,7 @@ HEADERS += json.h
 
 EXE = cloudRecv
 
-LIBS :=
+LIBS := -lqpid-proton
 
 OBJS = $(SOURCES:.cpp=.o)
 
