@@ -32,19 +32,19 @@ int main(int argc, char** argv) {
     if(argc < 2) 
         die(__FILE__, __LINE__, "Specify the Azure queue path");
 
-	// Initialize and set messager to be non-blocking mode.
-	messengerPtr = pn_messenger(NULL);
+    // Initialize and set messager to be non-blocking mode.
+    messengerPtr = pn_messenger(NULL);
 #ifdef ASYNC_MODE
     pn_messenger_set_blocking(messengerPtr, false);
 #endif
 
-	// Start the messenger.
-	pn_messenger_start(messengerPtr);
-	check(messengerPtr);
+    // Start the messenger.
+    pn_messenger_start(messengerPtr);
+    check(messengerPtr);
 
-	// Subscribe messenger to the Azure Service bus path.
-	pn_messenger_subscribe(messengerPtr, argv[1]);
-	check(messengerPtr);
+    // Subscribe messenger to the Azure Service bus path.
+    pn_messenger_subscribe(messengerPtr, argv[1]);
+    check(messengerPtr);
 
 #ifdef ASYNC_MODE
     // Set to receive as many messages as messenger can buffer.
@@ -59,21 +59,18 @@ int main(int argc, char** argv) {
     // Prepare message data.
     pn_message_t* msgPtr = pn_message();
 
-	// Main application loop.
-	while(1) {
+    // Main application loop.
+    while(1) {
 #ifdef ASYNC_MODE
         // Block indefinitely until there has been socket activity.
-        pn_messenger_work(messengerPtr, 1024);
-
-        if(pn_messenger_incoming(messengerPtr)) {
+        pn_messenger_work(messengerPtr, -1);
 #else
         // Set in receive mode.
         pn_messenger_recv(messengerPtr, 1024);
         check(messengerPtr);
-
+#endif
         // Process all new incoming messages.
         while(pn_messenger_incoming(messengerPtr)) {
-#endif
 
             // Get new message out from messager.
             pn_messenger_get(messengerPtr, msgPtr);
@@ -111,7 +108,7 @@ int main(int argc, char** argv) {
         }
 
         printf("#");
-	}
+    }
 
-	return 0;
+    return 0;
 }
