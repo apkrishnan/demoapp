@@ -9,18 +9,17 @@
 #include <ctype.h>
 #include <time.h>
 
-//char* azurePathStr = (char*)"amqps://owner:eHU40bVNQZHy8zOOErpbsROAo9cp5DjIl3yHgICQhL4=@arun-amqp-ns.servicebus.windows.net/rahul-queue";
-
 // GPIO used for Button.
 #define BTN_GPIO    49
 
+// Qpid-proton Messenger.
 pn_messenger_t* messengerPtr;
 
-#define check(messengerPtr)                                                       \
-  do {                                                                            \
-     if(pn_messenger_errno(messengerPtr))                                         \
-        die(__FILE__, __LINE__, pn_error_text(pn_messenger_error(messengerPtr))); \
-  } while(0)                                                                      \
+#define check(ptr)                                                       \
+  do {                                                                   \
+     if(pn_messenger_errno(ptr))                                         \
+        die(__FILE__, __LINE__, pn_error_text(pn_messenger_error(ptr))); \
+  } while(0)
 
 void die(const char* f_fileName, int f_line, const char* f_message) {
     fprintf(stderr, "%s:%i: %s\n", f_fileName, f_line, f_message);
@@ -29,7 +28,7 @@ void die(const char* f_fileName, int f_line, const char* f_message) {
 
 int main(int argc, char** argv) {
 
-    if(argc < 1) 
+    if(argc < 2) 
         die(__FILE__, __LINE__, "Specify the Azure queue path");
 
     // Initialize and start the messenger.
@@ -45,7 +44,7 @@ int main(int argc, char** argv) {
 
     while(1) {
 
-#if 1
+#ifndef USE_HW_PUSHBTN
         // Wait for user key press.
         getchar();
 #else
@@ -54,7 +53,7 @@ int main(int argc, char** argv) {
             gpio_get_value(BTN_GPIO, &pinStat);
             usleep(1000);
         } while(pinStat != HIGH);
-#endif
+#endif // USE_HW_PUSHBTN
 
         // Create JSON message string.
         Json::Value valObj;
@@ -67,8 +66,6 @@ int main(int argc, char** argv) {
 
         Json::FastWriter jsonWriter;
         std::string jsonFile = jsonWriter.write(valObj);
-
-        printf("Sending message to %s:\n%s\n", argv[1], jsonFile.c_str());
 
         // Initiatlze message data pointer.
         pn_message_t* msgPtr = pn_message();
@@ -90,6 +87,8 @@ int main(int argc, char** argv) {
 
         // Free up message pointer.
         pn_message_free(msgPtr);
+
+        printf("Sent new message to %s:\n%s", argv[1], jsonFile.c_str());
     }
 
     return 0;
