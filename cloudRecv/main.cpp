@@ -8,48 +8,109 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-char* azurePathStr = (char*)"amqps://";
+#define ASYNC_MODE 1
 
-pn_message_t* msgPtr;
+// GPIO used for LED.
+#define LED_GPIO    115
+
+// Qpid-proton Messenger.
 pn_messenger_t* messengerPtr;
 
-#define check(messengerPtr)                                                       \
-  do {                                                                            \
-     if(pn_messenger_errno(messengerPtr))                                         \
-        die(__FILE__, __LINE__, pn_error_text(pn_messenger_error(messengerPtr))); \
-  } while(0)                                                                      \
+#define check(ptr)                                                       \
+  do {                                                                   \
+     if(pn_messenger_errno(ptr))                                         \
+        die(__FILE__, __LINE__, pn_error_text(pn_messenger_error(ptr))); \
+  } while(0)
 
 void die(const char* f_fileName, int f_line, const char* f_message) {
     fprintf(stderr, "%s:%i: %s\n", f_fileName, f_line, f_message);
     exit(1);
 }
 
-int main(void) {
+int main(int argc, char** argv) {
 
-	// Initiatlze message data pointer.
-	msgPtr = pn_message();
+    if(argc < 2) 
+        die(__FILE__, __LINE__, "Specify the Azure queue path");
 
 	// Initialize and set messager to be non-blocking mode.
 	messengerPtr = pn_messenger(NULL);
-	pn_messenger_set_blocking(messengerPtr, false);
+#ifdef ASYNC_MODE
+    pn_messenger_set_blocking(messengerPtr, false);
+#endif
 
 	// Start the messenger.
 	pn_messenger_start(messengerPtr);
 	check(messengerPtr);
 
 	// Subscribe messenger to the Azure Service bus path.
-	pn_messenger_subscribe(messengerPtr, azurePathStr);
+	pn_messenger_subscribe(messengerPtr, argv[1]);
 	check(messengerPtr);
 
-	// Set to receive as many messages as messenger can buffer.
-	pn_messenger_recv(messengerPtr, -1);
+#ifdef ASYNC_MODE
+    // Set to receive as many messages as messenger can buffer.
+    pn_messenger_recv(messengerPtr, -1);
+#endif
+
+    // Configure LED GPIO to be output pin.
+    gpio_export(LED_GPIO);
+    gpio_set_dir(LED_GPIO, OUTPUT_PIN);
+    gpio_set_value(LED_GPIO, LOW);
+
+    // Prepare message data.
+    pn_message_t* msgPtr = pn_message();
 
 	// Main application loop.
 	while(1) {
-		// Block indefinitely until there has been socket activity.
-		pn_messenger_work(messengerPtr, -1);
+#ifdef ASYNC_MODE
+        // Block indefinitely until there has been socket activity.
+        pn_messenger_work(messengerPtr, 1024);
 
-		// TODO: process the message.
+        if(pn_messenger_incoming(messengerPtr)) {
+#else
+        // Set in receive mode.
+        pn_messenger_recv(messengerPtr, 1024);
+        check(messengerPtr);
+
+        // Process all new incoming messages.
+        while(pn_messenger_incoming(messengerPtr)) {
+#endif
+
+            // Get new message out from messager.
+            pn_messenger_get(messengerPtr, msgPtr);
+            check(messengerPtr);
+
+            // Retrieve message string.
+            const char* subjStr = pn_message_get_subject(msgPtr);
+
+            // Retrieve data packet.
+            char datBuf[2048];
+            size_t datBufSz = sizeof(datBuf);
+            pn_data_t* msgBodyPtr = pn_message_body(msgPtr);
+            pn_data_format(msgBodyPtr, datBuf, &datBufSz);
+
+#ifdef ASYC_MODE
+            // Mark message is accepted on tracker.
+            pn_tracker_t msgTracker = pn_messenger_incoming_tracker(messengerPtr);
+            pn_messenger_accept(messengerPtr, msgTracker, 0);
+#endif
+
+            // Printout for diagnostics.
+            printf("\nNew message recieved from %s\n", argv[1]);
+            printf("Address: %s\n", pn_message_get_address(msgPtr));
+            printf("Suject: %s\n", subjStr ? subjStr : "(no subject)");
+            printf("Content: %s\n\n", datBuf);
+
+            // Blink LED twice.
+            gpio_set_value(LED_GPIO, HIGH);
+            usleep(200000);
+            gpio_set_value(LED_GPIO, LOW);
+            usleep(200000);
+            gpio_set_value(LED_GPIO, HIGH);
+            usleep(200000);
+            gpio_set_value(LED_GPIO, LOW);
+        }
+
+        printf("#");
 	}
 
 	return 0;
