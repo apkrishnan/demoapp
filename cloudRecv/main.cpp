@@ -55,7 +55,8 @@ int main(int argc, char** argv) {
     while(1) {
         // Wait to receive at least one message.
         pn_messenger_recv(messengerPtr, 1);
-        check(messengerPtr);
+        if(pn_messenger_errno(messengerPtr))
+            continue;
 
         // Process all new incoming messages.
         while(pn_messenger_incoming(messengerPtr)) {
