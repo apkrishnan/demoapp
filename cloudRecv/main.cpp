@@ -30,69 +30,78 @@ int main(int argc, char** argv) {
     if(argc < 2) 
         die(__FILE__, __LINE__, "Specify the Azure queue path");
 
-    // Initialize and set the messager incoming window to be 1.
-    messengerPtr = pn_messenger(NULL);
-    pn_messenger_set_incoming_window(messengerPtr, 1);
-    check(messengerPtr);
-
-    // Start the messenger.
-    pn_messenger_start(messengerPtr);
-    check(messengerPtr);
-
-    // Subscribe messenger to the Azure Service bus path.
-    pn_messenger_subscribe(messengerPtr, argv[1]);
-    check(messengerPtr);
-
     // Configure LED GPIO to be output pin.
     gpio_export(LED_GPIO);
     gpio_set_dir(LED_GPIO, OUTPUT_PIN);
     gpio_set_value(LED_GPIO, LOW);
 
-    // Prepare message data.
-    pn_message_t* msgPtr = pn_message();
-
-    // Main application loop.
     while(1) {
-        // Wait to receive at least one message.
-        pn_messenger_recv(messengerPtr, 1);
-        if(pn_messenger_errno(messengerPtr))
-            continue;
 
-        // Process all new incoming messages.
-        while(pn_messenger_incoming(messengerPtr)) {
+        // Initialize and set the messager incoming window to be 1.
+        messengerPtr = pn_messenger(NULL);
+        pn_messenger_set_incoming_window(messengerPtr, 1);
+        check(messengerPtr);
 
-            // Get new message out from messager.
-            pn_messenger_get(messengerPtr, msgPtr);
-            check(messengerPtr);
+        // Start the messenger.
+        pn_messenger_start(messengerPtr);
+        check(messengerPtr);
 
-            // Retrieve message string.
-            //const char* subjStr = pn_message_get_subject(msgPtr);
+        // Subscribe messenger to the Azure Service bus path.
+        pn_messenger_subscribe(messengerPtr, argv[1]);
+        check(messengerPtr);
 
-            // Retrieve data packet.
-            char datBuf[2048];
-            size_t datBufSz = sizeof(datBuf);
-            pn_data_t* msgBodyPtr = pn_message_body(msgPtr);
-            pn_data_format(msgBodyPtr, datBuf, &datBufSz);
+        // Prepare message data.
+        pn_message_t* msgPtr = pn_message();
 
-            // Mark message is accepted on tracker.
-            pn_tracker_t msgTracker = pn_messenger_incoming_tracker(messengerPtr);
-            pn_messenger_accept(messengerPtr, msgTracker, PN_CUMULATIVE);
+        // Loop until message receive timeout.
+        while(1) {
 
-            // Printout for diagnostics.
-            printf("\nNew message recieved from %s\n", argv[1]);
-            printf("Address: %s\n", pn_message_get_address(msgPtr));
-            //printf("Suject: %s\n", subjStr ? subjStr : "(no subject)");
-            printf("Content: %s\n\n", datBuf);
+            // Wait to receive at least one message.
+            pn_messenger_recv(messengerPtr, 1);
+            if(pn_messenger_errno(messengerPtr))
+                break;
 
-            // Blink LED twice.
-            gpio_set_value(LED_GPIO, HIGH);
-            usleep(200000);
-            gpio_set_value(LED_GPIO, LOW);
-            usleep(200000);
-            gpio_set_value(LED_GPIO, HIGH);
-            usleep(200000);
-            gpio_set_value(LED_GPIO, LOW);
+            // Process all new incoming messages.
+            while(pn_messenger_incoming(messengerPtr)) {
+
+                // Get new message out from messager.
+                pn_messenger_get(messengerPtr, msgPtr);
+                check(messengerPtr);
+
+                // Retrieve message string.
+                const char* subjStr = pn_message_get_subject(msgPtr);
+
+                // Retrieve data packet.
+                char datBuf[2048];
+                size_t datBufSz = sizeof(datBuf);
+                pn_data_t* msgBodyPtr = pn_message_body(msgPtr);
+                pn_data_format(msgBodyPtr, datBuf, &datBufSz);
+
+                // Mark message is accepted on tracker.
+                pn_tracker_t msgTracker = pn_messenger_incoming_tracker(messengerPtr);
+                pn_messenger_accept(messengerPtr, msgTracker, PN_CUMULATIVE);
+
+                // Printout for diagnostics.
+                printf("New message recieved from %s\n", argv[1]);
+                printf("Address: %s\n", pn_message_get_address(msgPtr));
+                printf("Suject: %s\n", subjStr ? subjStr : "(no subject)");
+                printf("Content: %s\n\n", datBuf);
+
+                // Blink LED twice.
+                gpio_set_value(LED_GPIO, HIGH);
+                usleep(200000);
+                gpio_set_value(LED_GPIO, LOW);
+                usleep(200000);
+                gpio_set_value(LED_GPIO, HIGH);
+                usleep(200000);
+                gpio_set_value(LED_GPIO, LOW);
+            }
         }
+
+        // Free up resources to restart.
+        pn_messenger_stop(messengerPtr);
+        pn_messenger_free(messengerPtr);
+        pn_message_free(msgPtr); 
     }
 
     return 0;
