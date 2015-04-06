@@ -8,8 +8,6 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-#define ASYNC_MODE 1
-
 // GPIO used for LED.
 #define LED_GPIO    115
 
@@ -32,11 +30,10 @@ int main(int argc, char** argv) {
     if(argc < 2) 
         die(__FILE__, __LINE__, "Specify the Azure queue path");
 
-    // Initialize and set messager to be non-blocking mode.
+    // Initialize and set the messager incoming window to be 1.
     messengerPtr = pn_messenger(NULL);
-#ifdef ASYNC_MODE
-    pn_messenger_set_blocking(messengerPtr, false);
-#endif
+    pn_messenger_set_incoming_window(messengerPtr, 1);
+    check(messengerPtr);
 
     // Start the messenger.
     pn_messenger_start(messengerPtr);
@@ -45,11 +42,6 @@ int main(int argc, char** argv) {
     // Subscribe messenger to the Azure Service bus path.
     pn_messenger_subscribe(messengerPtr, argv[1]);
     check(messengerPtr);
-
-#ifdef ASYNC_MODE
-    // Set to receive as many messages as messenger can buffer.
-    pn_messenger_recv(messengerPtr, -1);
-#endif
 
     // Configure LED GPIO to be output pin.
     gpio_export(LED_GPIO);
@@ -61,14 +53,10 @@ int main(int argc, char** argv) {
 
     // Main application loop.
     while(1) {
-#ifdef ASYNC_MODE
-        // Block indefinitely until there has been socket activity.
-        pn_messenger_work(messengerPtr, -1);
-#else
-        // Set in receive mode.
-        pn_messenger_recv(messengerPtr, 1024);
+        // Wait to receive at least one message.
+        pn_messenger_recv(messengerPtr, 1);
         check(messengerPtr);
-#endif
+
         // Process all new incoming messages.
         while(pn_messenger_incoming(messengerPtr)) {
 
@@ -77,7 +65,7 @@ int main(int argc, char** argv) {
             check(messengerPtr);
 
             // Retrieve message string.
-            const char* subjStr = pn_message_get_subject(msgPtr);
+            //const char* subjStr = pn_message_get_subject(msgPtr);
 
             // Retrieve data packet.
             char datBuf[2048];
@@ -85,16 +73,14 @@ int main(int argc, char** argv) {
             pn_data_t* msgBodyPtr = pn_message_body(msgPtr);
             pn_data_format(msgBodyPtr, datBuf, &datBufSz);
 
-#ifdef ASYC_MODE
             // Mark message is accepted on tracker.
             pn_tracker_t msgTracker = pn_messenger_incoming_tracker(messengerPtr);
-            pn_messenger_accept(messengerPtr, msgTracker, 0);
-#endif
+            pn_messenger_accept(messengerPtr, msgTracker, PN_CUMULATIVE);
 
             // Printout for diagnostics.
             printf("\nNew message recieved from %s\n", argv[1]);
             printf("Address: %s\n", pn_message_get_address(msgPtr));
-            printf("Suject: %s\n", subjStr ? subjStr : "(no subject)");
+            //printf("Suject: %s\n", subjStr ? subjStr : "(no subject)");
             printf("Content: %s\n\n", datBuf);
 
             // Blink LED twice.
@@ -106,8 +92,6 @@ int main(int argc, char** argv) {
             usleep(200000);
             gpio_set_value(LED_GPIO, LOW);
         }
-
-        printf("#");
     }
 
     return 0;
