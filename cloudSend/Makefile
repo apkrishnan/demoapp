@@ -1,6 +1,7 @@
 
 CC = g++
-CFLAGS = -O2 -c -Wall
+CFLAGS := -O2 -c -Wall
+CFLAGS += -DUSE_HW_PUSHBTN
 LDFLAGS =
 
 SOURCES := main.cpp
